@@ -47,7 +47,7 @@ INSERT INTO shop_product (id, name, group_name, segment, size, color, price)
 SELECT id, name, group_name, segment, size, color, price
 FROM generated
 WHERE NOT EXISTS (SELECT 1 FROM shop_product);
-
+-- Tạo bảng address để lưu thông tin địa chỉ giao hàng của khách hàng
 CREATE TABLE IF NOT EXISTS address (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255),
@@ -56,3 +56,22 @@ CREATE TABLE IF NOT EXISTS address (
     recipient_phone VARCHAR(32) NOT NULL,
     shipping_address VARCHAR(500) NOT NULL
 );
+-- Tạo bảng user để lưu thông tin người dùng, bao gồm khóa ngoại đến địa chỉ mặc định
+CREATE TABLE IF NOT EXISTS "user" (
+    username VARCHAR(255) PRIMARY KEY,
+    fullname VARCHAR(255),
+    password VARCHAR(255),
+    age INTEGER,
+    gender VARCHAR(50),
+    email VARCHAR(255),
+    phone VARCHAR(32),
+    default_address INTEGER,
+    base_address VARCHAR(500),
+    CONSTRAINT fk_user_default_address
+        FOREIGN KEY (default_address)
+        REFERENCES address (id)
+        ON DELETE SET NULL
+);
+
+
+
