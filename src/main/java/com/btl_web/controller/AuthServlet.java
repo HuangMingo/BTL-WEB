@@ -1,6 +1,7 @@
 package com.btl_web.controller;
 
-import com.btl_web.model.UserStore;
+import com.btl_web.dao.UserDAO;
+import com.btl_web.model.User;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -9,9 +10,11 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import java.io.IOException;
+import java.sql.SQLException;
 
-@WebServlet(urlPatterns = { "/auth/login", "/auth/register", "/auth/logout" })
+@WebServlet(urlPatterns = {"/auth/login", "/auth/register", "/auth/logout"})
 public class AuthServlet extends HttpServlet {
+
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -36,14 +39,33 @@ public class AuthServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         request.setCharacterEncoding("UTF-8");
-
         String path = request.getServletPath();
         if ("/auth/login".equals(path)) {
-            handleLogin(request, response);
+            try {
+                handleLogin(request, response);
+            } catch (SQLException ex) {
+                System.out.println(ex.getMessage());
+                System.getLogger(AuthServlet.class.getName()).log(System.Logger.Level.ERROR, (String) null, ex);
+                request.setAttribute("authError", "Hệ thống đăng nhập đang lỗi dữ liệu. Vui lòng thử lại.");
+                request.setAttribute("enteredUsername", normalize(request.getParameter("username")));
+                request.getRequestDispatcher("/login.jsp").forward(request, response);
+            } catch (ClassNotFoundException ex) {
+                System.getLogger(AuthServlet.class.getName()).log(System.Logger.Level.ERROR, (String) null, ex);
+            }
             return;
         }
         if ("/auth/register".equals(path)) {
-            handleRegister(request, response);
+            try {
+                handleRegister(request, response);
+            } catch (SQLException ex) {
+                System.getLogger(AuthServlet.class.getName()).log(System.Logger.Level.ERROR, "Login error", ex);
+                request.setAttribute("authError", "Đăng ký thất bại do lỗi dữ liệu. Vui lòng thử lại.");
+                request.setAttribute("enteredFullName", normalize(request.getParameter("fullName")));
+                request.setAttribute("enteredUsername", normalize(request.getParameter("username")));
+                request.getRequestDispatcher("/register.jsp").forward(request, response);
+            } catch (ClassNotFoundException ex) {
+                System.getLogger(AuthServlet.class.getName()).log(System.Logger.Level.ERROR, (String) null, ex);
+            }
             return;
         }
 
@@ -51,10 +73,10 @@ public class AuthServlet extends HttpServlet {
     }
 
     private void handleLogin(HttpServletRequest request, HttpServletResponse response)
-            throws IOException, ServletException {
+            throws IOException, ServletException, SQLException, ClassNotFoundException {
         String username = normalize(request.getParameter("username"));
         String password = normalize(request.getParameter("password"));
-
+        UserDAO userDAO = new UserDAO();
         request.setAttribute("enteredUsername", username);
 
         if (username.isEmpty() || password.isEmpty()) {
@@ -63,7 +85,7 @@ public class AuthServlet extends HttpServlet {
             return;
         }
 
-        UserStore.User user = UserStore.login(getServletContext(), username, password);
+        User user = userDAO.login(username, password);
         if (user == null) {
             request.setAttribute("authError", "Sai tài khoản hoặc mật khẩu.");
             request.getRequestDispatcher("/login.jsp").forward(request, response);
@@ -77,11 +99,12 @@ public class AuthServlet extends HttpServlet {
     }
 
     private void handleRegister(HttpServletRequest request, HttpServletResponse response)
-            throws IOException, ServletException {
+            throws IOException, ServletException, SQLException, ClassNotFoundException {
         String fullName = normalize(request.getParameter("fullName"));
         String username = normalize(request.getParameter("username"));
         String password = normalize(request.getParameter("password"));
         String confirmPassword = normalize(request.getParameter("confirmPassword"));
+        UserDAO userDAO = new UserDAO();
 
         request.setAttribute("enteredFullName", fullName);
         request.setAttribute("enteredUsername", username);
@@ -110,13 +133,12 @@ public class AuthServlet extends HttpServlet {
             return;
         }
 
-        boolean registered = UserStore.register(getServletContext(), username, fullName, password);
+        boolean registered = userDAO.register(username, fullName, password);
         if (!registered) {
             request.setAttribute("authError", "Tên đăng nhập đã tồn tại.");
             request.getRequestDispatcher("/register.jsp").forward(request, response);
             return;
         }
-
         HttpSession session = request.getSession();
         session.setAttribute("authSuccess", "Đăng ký thành công. Vui lòng đăng nhập để mua hàng.");
         response.sendRedirect(request.getContextPath() + "/auth/login");

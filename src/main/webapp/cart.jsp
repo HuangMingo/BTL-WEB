@@ -2,7 +2,7 @@
 <%@ page import="java.util.List" %>
 <%@ page import="java.math.BigDecimal" %>
 <%@ page import="com.btl_web.controller.CartServlet" %>
-<%@ page import="com.btl_web.model.UserStore" %>
+<%@ page import="com.btl_web.model.User" %>
 <%
     @SuppressWarnings("unchecked")
     List<CartServlet.CartItemView> cartItems = (List<CartServlet.CartItemView>) request.getAttribute("cartItems");
@@ -12,13 +12,13 @@
     BigDecimal cartTotal = (BigDecimal) request.getAttribute("cartTotal");
     if (cartTotal == null) cartTotal = BigDecimal.ZERO;
 
-    UserStore.User currentUser = (UserStore.User) session.getAttribute("currentUser");
+    User currentUser = (User) session.getAttribute("currentUser");
     if (currentUser == null) {
         response.sendRedirect(request.getContextPath() + "/auth/login");
         return;
     }
 
-    UserStore.User profileUser = (UserStore.User) request.getAttribute("profileUser");
+    User profileUser = (User) request.getAttribute("profileUser");
     if (profileUser == null) {
         profileUser = currentUser;
     }
@@ -68,8 +68,10 @@
         }
 
         .logo {
-            font-family: "Archivo Black", sans-serif;
-            font-size: 1.12rem;
+            font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+            font-size: 1.18rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
         }
 
         .top-links {

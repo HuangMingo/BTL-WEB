@@ -1,6 +1,7 @@
 package com.btl_web.controller;
 
-import com.btl_web.model.UserStore;
+import com.btl_web.model.User;
+
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -16,7 +17,7 @@ public class AddProductsServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         HttpSession session = request.getSession();
-        UserStore.User currentUser = (UserStore.User) session.getAttribute("currentUser");
+        User currentUser = (User) session.getAttribute("currentUser");
         if (currentUser == null || !"admin".equals(currentUser.getUsername())) {
             session.setAttribute("authError", "Chỉ tài khoản admin mới được truy cập trang quản trị sản phẩm.");
             response.sendRedirect(request.getContextPath() + "/auth/login");

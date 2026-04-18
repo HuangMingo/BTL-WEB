@@ -1,10 +1,10 @@
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ page import="java.util.List" %>
-<%@ page import="com.btl_web.model.ShopCatalog" %>
-<%@ page import="com.btl_web.model.UserStore" %>
+<%@ page import="com.btl_web.model.Product" %>
+<%@ page import="com.btl_web.model.User" %>
 <%
     @SuppressWarnings("unchecked")
-    List<ShopCatalog.Product> products = (List<ShopCatalog.Product>) request.getAttribute("products");
+    List<Product> products = (List<Product>) request.getAttribute("products");
     if (products == null) {
         products = java.util.Collections.emptyList();
     }
@@ -24,7 +24,7 @@
     if (segment == null) segment = "all";
     if (q == null) q = "";
 
-    UserStore.User currentUser = (UserStore.User) session.getAttribute("currentUser");
+    User currentUser = (User) session.getAttribute("currentUser");
     String authSuccess = (String) session.getAttribute("authSuccess");
     String shopSuccess = (String) session.getAttribute("shopSuccess");
     String shopError = (String) session.getAttribute("shopError");
@@ -449,7 +449,7 @@
             <div class="empty">Không có sản phẩm phù hợp bộ lọc hiện tại.</div>
         <% } else { %>
             <div class="grid">
-                <% for (ShopCatalog.Product product : products) { %>
+                <% for (Product product : products) { %>
                     <article class="card">
                         <div class="thumb"></div>
                         <h3><%= product.getName() %></h3>

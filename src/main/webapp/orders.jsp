@@ -1,9 +1,9 @@
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ page import="java.util.List" %>
 <%@ page import="com.btl_web.model.OrderStore" %>
-<%@ page import="com.btl_web.model.UserStore" %>
+<%@ page import="com.btl_web.model.User" %>
 <%
-    UserStore.User currentUser = (UserStore.User) session.getAttribute("currentUser");
+    User currentUser = (User) session.getAttribute("currentUser");
     if (currentUser == null) {
         response.sendRedirect(request.getContextPath() + "/auth/login");
         return;
@@ -51,7 +51,12 @@
             gap: 10px;
             flex-wrap: wrap;
         }
-        .logo { font-family: "Archivo Black", sans-serif; font-size: 1.05rem; }
+        .logo {
+            font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+            font-size: 1.18rem;
+            font-weight: 800;
+            letter-spacing: -0.01em;
+        }
         .links { display: flex; gap: 8px; flex-wrap: wrap; }
         .link-btn {
             display: inline-block; text-decoration: none; border: 1px solid #ced8d2; border-radius: 10px;

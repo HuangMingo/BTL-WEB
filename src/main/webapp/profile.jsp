@@ -1,22 +1,29 @@
+<%@page import="com.btl_web.dao.AddressDAO"%>
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
-<%@ page import="com.btl_web.model.UserStore" %>
+<%@ page import="com.btl_web.model.Address" %>
+<%@ page import="com.btl_web.model.User" %>
 <%@ page import="java.util.List" %>
 <%
-    UserStore.User currentUser = (UserStore.User) session.getAttribute("currentUser");
+    User currentUser = (User) session.getAttribute("currentUser");
     if (currentUser == null) {
         response.sendRedirect(request.getContextPath() + "/auth/login");
         return;
     }
 
-    UserStore.User profileUser = (UserStore.User) request.getAttribute("profileUser");
+    User profileUser = (User) request.getAttribute("profileUser");
     if (profileUser == null) {
         profileUser = currentUser;
     }
-
-    List<UserStore.Address> addresses = profileUser.getShippingAddressesView();
+    AddressDAO addressDAO = new AddressDAO();
+    List<Address> addresses =addressDAO.getAllAddressByUsername(profileUser.getUsername());
     String profileError = (String) session.getAttribute("profileError");
     String profileSuccess = (String) session.getAttribute("profileSuccess");
-    boolean profileLocked = UserStore.isFixedProfileLocked(profileUser);
+        boolean profileLocked = profileUser != null
+            && profileUser.getAge() > 0
+            && profileUser.getGender() != null && !profileUser.getGender().trim().isEmpty()
+            && profileUser.getEmail() != null && !profileUser.getEmail().trim().isEmpty()
+            && profileUser.getPhone() != null && !profileUser.getPhone().trim().isEmpty()
+            && profileUser.getBaseAddress() != null && !profileUser.getBaseAddress().trim().isEmpty();
     session.removeAttribute("profileError");
     session.removeAttribute("profileSuccess");
 %>
@@ -112,6 +119,7 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 14px;
+            align-items: start;
         }
 
         .card {
@@ -119,16 +127,49 @@
             border-radius: var(--radius);
             background: var(--panel);
             box-shadow: var(--shadow);
+            padding: 16px;
+        }
+
+        .card-head {
+            margin-bottom: 14px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e7ece8;
+        }
+
+        .card-title {
+            margin: 0 0 6px;
+            font-size: 1.05rem;
+            line-height: 1.25;
+        }
+
+        .card-subtitle {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.55;
+        }
+
+        .card-stack {
+            display: grid;
+            gap: 12px;
+        }
+
+        .subcard {
+            border: 1px solid #dde5df;
+            border-radius: 12px;
+            background: #fff;
             padding: 14px;
         }
 
-        h2 {
+        .subcard-title {
             margin: 0 0 10px;
-            font-size: 1rem;
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
         }
 
         .desc {
-            margin: 0 0 10px;
+            margin: 0;
             color: var(--muted);
             font-size: 0.9rem;
         }
@@ -237,10 +278,63 @@
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .field-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .address-list {
+            margin-top: 0;
+            display: grid;
+            gap: 12px;
+        }
+
+        .address-item {
+            border: 1px solid #d4ded8;
+            border-radius: 12px;
+            padding: 14px;
+            background: #fff;
+            display: grid;
+            gap: 12px;
+        }
+
+        .address-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .address-name {
+            margin: 0;
+            font-size: 0.98rem;
+            font-weight: 800;
+        }
+
+        .address-meta {
+            margin: 4px 0 0;
+            color: var(--muted);
+            font-size: 0.88rem;
+            line-height: 1.45;
+        }
+
+        .address-badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
         }
 
         @media (max-width: 980px) {
             .shell { grid-template-columns: 1fr; }
+            .field-row { grid-template-columns: 1fr; }
+            .inline-actions { justify-content: flex-start; }
         }
     </style>
 </head>
@@ -263,8 +357,10 @@
 
 <div class="shell">
     <section class="card">
-        <h2>Thông tin cá nhân cố định</h2>
-        <p class="desc">Bắt buộc trước khi đặt hàng. Email và số điện thoại là duy nhất giữa các tài khoản.</p>
+        <div class="card-head">
+            <h2 class="card-title">Thông tin cá nhân cố định</h2>
+            <p class="card-subtitle">Bắt buộc trước khi đặt hàng. Email và số điện thoại là duy nhất giữa các tài khoản.</p>
+        </div>
 
         <% if (profileLocked) { %>
             <div class="locked-note">Thông tin cá nhân đã được xác lập. Nếu muốn sửa, vui lòng liên hệ admin.</div>
@@ -279,22 +375,24 @@
                 <label for="age">Tuổi</label>
                 <input id="age" name="age" type="number" min="1" max="120" value="<%= profileUser.getAge() <= 0 ? "" : profileUser.getAge() %>" <%= profileLocked ? "readonly" : "" %>>
             </div>
-            <div class="field">
-                <label for="gender">Giới tính</label>
-                <select id="gender" name="gender" <%= profileLocked ? "disabled" : "" %>>
-                    <option value="">Chọn giới tính</option>
-                    <option value="Nam" <%= "Nam".equals(profileUser.getGender()) ? "selected" : "" %>>Nam</option>
-                    <option value="Nữ" <%= "Nữ".equals(profileUser.getGender()) ? "selected" : "" %>>Nữ</option>
-                    <option value="Khác" <%= "Khác".equals(profileUser.getGender()) ? "selected" : "" %>>Khác</option>
-                </select>
+            <div class="field-row">
+                <div class="field">
+                    <label for="gender">Giới tính</label>
+                    <select id="gender" name="gender" <%= profileLocked ? "disabled" : "" %>>
+                        <option value="">Chọn giới tính</option>
+                        <option value="Nam" <%= "Nam".equals(profileUser.getGender()) ? "selected" : "" %>>Nam</option>
+                        <option value="Nữ" <%= "Nữ".equals(profileUser.getGender()) ? "selected" : "" %>>Nữ</option>
+                        <option value="Khác" <%= "Khác".equals(profileUser.getGender()) ? "selected" : "" %>>Khác</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="phone">Số điện thoại</label>
+                    <input id="phone" name="phone" value="<%= profileUser.getPhone() == null ? "" : profileUser.getPhone() %>" <%= profileLocked ? "readonly" : "" %>>
+                </div>
             </div>
             <div class="field">
                 <label for="email">Email</label>
                 <input id="email" name="email" type="email" value="<%= profileUser.getEmail() == null ? "" : profileUser.getEmail() %>" <%= profileLocked ? "readonly" : "" %>>
-            </div>
-            <div class="field">
-                <label for="phone">Số điện thoại</label>
-                <input id="phone" name="phone" value="<%= profileUser.getPhone() == null ? "" : profileUser.getPhone() %>" <%= profileLocked ? "readonly" : "" %>>
             </div>
             <div class="field">
                 <label for="baseAddress">Địa chỉ cá nhân</label>
@@ -307,63 +405,83 @@
     </section>
 
     <section class="card">
-        <h2>Địa chỉ giao hàng</h2>
-        <p class="desc">Bạn có thể thêm nhiều địa chỉ. Hãy chọn 1 địa chỉ mặc định để đặt hàng nhanh.</p>
+        <div class="card-head">
+            <h2 class="card-title">Địa chỉ giao hàng</h2>
+            <p class="card-subtitle">Thêm nhiều địa chỉ, rồi chỉnh sửa nhanh ngay bên dưới khi cần.</p>
+        </div>
 
-        <form action="<%= request.getContextPath() %>/profile/address/add" method="post">
-            <div class="field">
-                <label for="recipientName">Tên người nhận</label>
-                <input id="recipientName" name="recipientName">
-            </div>
-            <div class="field">
-                <label for="recipientPhone">Số điện thoại người nhận</label>
-                <input id="recipientPhone" name="recipientPhone">
-            </div>
-            <div class="field">
-                <label for="shippingAddress">Địa chỉ giao hàng</label>
-                <textarea id="shippingAddress" name="shippingAddress"></textarea>
-            </div>
-            <div class="field">
-                <label><input type="checkbox" name="setDefault"> Đặt làm mặc định</label>
-            </div>
-            <button class="btn btn-primary" type="submit">Thêm địa chỉ giao hàng</button>
-        </form>
-
-        <div class="address-list">
-            <% if (addresses.isEmpty()) { %>
-                <div class="address-item">Chưa có địa chỉ giao hàng.</div>
-            <% } else { %>
-                <% for (UserStore.Address address : addresses) { %>
-                    <div class="address-item">
-                        <form action="<%= request.getContextPath() %>/profile/address/update" method="post">
-                            <input type="hidden" name="addressId" value="<%= address.getId() %>">
-                            <div class="field">
-                                <label>Tên người nhận</label>
-                                <input name="recipientName" value="<%= address.getRecipientName() %>">
-                            </div>
-                            <div class="field">
-                                <label>Số điện thoại người nhận</label>
-                                <input name="recipientPhone" value="<%= address.getRecipientPhone() %>">
-                            </div>
-                            <div class="field">
-                                <label>Địa chỉ giao hàng</label>
-                                <textarea name="shippingAddress"><%= address.getShippingAddress() %></textarea>
-                            </div>
-                            <div class="name">
-                                <%= address.getRecipientName() %>
-                                <% if (address.getId().equals(profileUser.getDefaultAddressId())) { %>
-                                    <span class="pill">Mặc định</span>
-                                <% } %>
-                            </div>
-                            <div class="meta">Có thể sửa trực tiếp nội dung trên rồi bấm lưu.</div>
-                            <div class="inline-actions">
-                                <label><input type="checkbox" name="setDefault" <%= address.getId().equals(profileUser.getDefaultAddressId()) ? "checked" : "" %>> Đặt làm mặc định</label>
-                                <button class="btn btn-soft" type="submit">Lưu địa chỉ</button>
-                            </div>
-                        </form>
+        <div class="card-stack">
+            <form class="subcard" action="<%= request.getContextPath() %>/profile/address/add" method="post">
+                <div class="subcard-title">Thêm địa chỉ mới</div>
+                <div class="field-row">
+                    <div class="field">
+                        <label for="recipientName">Tên người nhận</label>
+                        <input id="recipientName" name="recipientName">
                     </div>
-                <% } %>
-            <% } %>
+                    <div class="field">
+                        <label for="recipientPhone">Số điện thoại người nhận</label>
+                        <input id="recipientPhone" name="recipientPhone">
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="shippingAddress">Địa chỉ giao hàng</label>
+                    <textarea id="shippingAddress" name="shippingAddress"></textarea>
+                </div>
+                <div class="inline-actions">
+                    <label><input type="checkbox" name="setDefault"> Đặt làm mặc định</label>
+                    <button class="btn btn-primary" type="submit">Thêm địa chỉ giao hàng</button>
+                </div>
+            </form>
+
+            <div class="subcard">
+                <div class="subcard-title">Danh sách địa chỉ đã lưu</div>
+                <div class="address-list">
+                    <% if (addresses.isEmpty()) { %>
+                        <div class="address-item">Chưa có địa chỉ giao hàng.</div>
+                    <% } else { %>
+                        <% for (Address address : addresses) { %>
+                            <div class="address-item">
+                                <div class="address-top">
+                                    <div>
+                                        <p class="address-name"><%= address.getRecipientName() == null ? "Địa chỉ giao hàng" : address.getRecipientName() %></p>
+                                        <p class="address-meta">
+                                            <%= address.getRecipientPhone() == null ? "" : address.getRecipientPhone() %><br>
+                                            <%= address.getShippingAddress() == null ? "" : address.getShippingAddress() %>
+                                        </p>
+                                    </div>
+                                    <div class="address-badges">
+                                        <% if (profileUser.getDefaultAddress() != null && address.getId() == profileUser.getDefaultAddress().getId()) { %>
+                                            <span class="pill">Mặc định</span>
+                                        <% } %>
+                                    </div>
+                                </div>
+
+                                <form action="<%= request.getContextPath() %>/profile/address/update" method="post">
+                                    <input type="hidden" name="addressId" value="<%= address.getId() %>">
+                                    <div class="field-row">
+                                        <div class="field">
+                                            <label>Tên người nhận</label>
+                                            <input name="recipientName" value="<%= address.getRecipientName() == null ? "" : address.getRecipientName() %>">
+                                        </div>
+                                        <div class="field">
+                                            <label>Số điện thoại người nhận</label>
+                                            <input name="recipientPhone" value="<%= address.getRecipientPhone() == null ? "" : address.getRecipientPhone() %>">
+                                        </div>
+                                    </div>
+                                    <div class="field">
+                                        <label>Địa chỉ giao hàng</label>
+                                        <textarea name="shippingAddress"><%= address.getShippingAddress() == null ? "" : address.getShippingAddress() %></textarea>
+                                    </div>
+                                    <div class="inline-actions">
+                                        <label><input type="checkbox" name="setDefault" <%= profileUser.getDefaultAddress() != null && address.getId() == profileUser.getDefaultAddress().getId() ? "checked" : "" %>> Đặt làm mặc định</label>
+                                        <button class="btn btn-soft" type="submit">Lưu địa chỉ</button>
+                                    </div>
+                                </form>
+                            </div>
+                        <% } %>
+                    <% } %>
+                </div>
+            </div>
         </div>
     </section>
 </div>

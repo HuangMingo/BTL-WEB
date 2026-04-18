@@ -14,77 +14,167 @@
     <title>Đăng ký</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Archivo+Black&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg: #f6f1e7;
+            --card: rgba(255, 253, 247, 0.92);
+            --text: #20302f;
+            --muted: #667675;
+            --line: #d7e1db;
+            --accent: #0d6c63;
+            --accent-dark: #0a5a52;
+            --danger: #b42318;
+            --shadow: 0 18px 40px rgba(32, 48, 47, 0.12);
+        }
+
+        * { box-sizing: border-box; }
+
         body {
             margin: 0;
             min-height: 100vh;
             display: grid;
             place-items: center;
-            background: linear-gradient(160deg, #f8f2e8 0%, #e7f2ef 100%);
-            font-family: "Plus Jakarta Sans", sans-serif;
-            padding: 16px;
+            padding: 24px 16px;
+            background:
+                radial-gradient(circle at top left, rgba(13, 108, 99, 0.08), transparent 34%),
+                radial-gradient(circle at bottom right, rgba(179, 83, 24, 0.08), transparent 28%),
+                linear-gradient(160deg, #faf7f0 0%, #e8f2ee 100%);
+            font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+            color: var(--text);
         }
+
         .box {
             width: 100%;
-            max-width: 460px;
-            border: 1px solid #dbe3de;
-            border-radius: 16px;
-            background: #fffdf9;
-            box-shadow: 0 16px 36px rgba(36, 47, 45, 0.1);
-            padding: 18px;
+            max-width: 500px;
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            background: var(--card);
+            box-shadow: var(--shadow);
+            padding: 28px;
+            backdrop-filter: blur(10px);
         }
-        h1 { margin: 0 0 6px; font-size: 1.3rem; }
-        p { margin: 0 0 14px; color: #5f706f; }
-        .field { margin-bottom: 10px; }
-        label { display: block; margin-bottom: 5px; font-size: 0.86rem; font-weight: 700; }
+
+        h1 {
+            margin: 0 0 8px;
+            font-family: "Archivo Black", "Segoe UI", sans-serif;
+            font-size: 1.65rem;
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            margin: 0 0 18px;
+            color: var(--muted);
+            line-height: 1.55;
+            font-size: 0.97rem;
+        }
+
+        .field { margin-bottom: 14px; }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.86rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            color: #334847;
+        }
+
         input {
             width: 100%;
-            border: 1px solid #d2dbd5;
-            border-radius: 10px;
-            padding: 10px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 14px 15px;
             font: inherit;
+            color: var(--text);
+            background: #fff;
+            outline: none;
+            transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
         }
+
+        input:focus {
+            border-color: rgba(13, 108, 99, 0.55);
+            box-shadow: 0 0 0 4px rgba(13, 108, 99, 0.12);
+        }
+
         button {
             width: 100%;
             border: 0;
-            border-radius: 10px;
-            padding: 10px;
+            border-radius: 14px;
+            padding: 14px 16px;
             font: inherit;
             font-weight: 700;
-            background: #0d6c63;
+            background: linear-gradient(180deg, var(--accent) 0%, var(--accent-dark) 100%);
             color: #fff;
             cursor: pointer;
+            box-shadow: 0 12px 24px rgba(13, 108, 99, 0.22);
+            transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
         }
-        .msg { margin-bottom: 10px; padding: 9px; border-radius: 8px; font-size: 0.9rem; }
-        .err { background: #fff3f2; color: #b42318; border: 1px solid #f0c6c1; }
-        .links { margin-top: 12px; font-size: 0.9rem; display: flex; justify-content: space-between; gap: 8px; }
-        a { color: #0d6c63; text-decoration: none; font-weight: 600; }
+
+        button:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.02);
+            box-shadow: 0 16px 28px rgba(13, 108, 99, 0.25);
+        }
+
+        .msg {
+            margin-bottom: 12px;
+            padding: 11px 12px;
+            border-radius: 12px;
+            font-size: 0.92rem;
+            line-height: 1.45;
+        }
+
+        .err { background: #fff3f2; color: var(--danger); border: 1px solid #f0c6c1; }
+
+        .links {
+            margin-top: 16px;
+            font-size: 0.93rem;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        a {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 700;
+        }
+
+        a:hover { text-decoration: underline; }
+
+        @media (max-width: 520px) {
+            .box { padding: 22px 18px; border-radius: 20px; }
+            h1 { font-size: 1.45rem; }
+            .links { flex-direction: column; }
+        }
     </style>
 </head>
 <body>
 <div class="box">
     <h1>Tạo tài khoản mua hàng</h1>
-    <p>Đăng ký nhanh để thêm sản phẩm vào giỏ và đặt hàng.</p>
+    <p class="subtitle">Đăng ký để lưu thông tin mua hàng, quản lý giỏ hàng và đặt đơn nhanh hơn.</p>
 
     <% if (authError != null) { %><div class="msg err"><%= authError %></div><% } %>
 
     <form action="<%= request.getContextPath() %>/auth/register" method="post">
         <div class="field">
             <label for="fullName">Họ và tên</label>
-            <input id="fullName" name="fullName" value="<%= enteredFullName %>">
+            <input id="fullName" name="fullName" value="<%= enteredFullName %>" autocomplete="name">
         </div>
         <div class="field">
             <label for="username">Tên đăng nhập</label>
-            <input id="username" name="username" value="<%= enteredUsername %>">
+            <input id="username" name="username" value="<%= enteredUsername %>" autocomplete="username">
         </div>
         <div class="field">
             <label for="password">Mật khẩu</label>
-            <input id="password" type="password" name="password">
+            <input id="password" type="password" name="password" autocomplete="new-password">
         </div>
         <div class="field">
             <label for="confirmPassword">Nhập lại mật khẩu</label>
-            <input id="confirmPassword" type="password" name="confirmPassword">
+            <input id="confirmPassword" type="password" name="confirmPassword" autocomplete="new-password">
         </div>
         <button type="submit">Đăng ký</button>
     </form>

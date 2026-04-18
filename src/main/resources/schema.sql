@@ -47,3 +47,12 @@ INSERT INTO shop_product (id, name, group_name, segment, size, color, price)
 SELECT id, name, group_name, segment, size, color, price
 FROM generated
 WHERE NOT EXISTS (SELECT 1 FROM shop_product);
+
+CREATE TABLE IF NOT EXISTS address (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255),
+    username VARCHAR(255) NOT NULL,
+    recipient_name VARCHAR(255) NOT NULL,
+    recipient_phone VARCHAR(32) NOT NULL,
+    shipping_address VARCHAR(500) NOT NULL
+);

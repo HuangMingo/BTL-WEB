@@ -14,13 +14,13 @@ public final class OrderStore {
     private OrderStore() {
     }
 
-    public static Order createOrder(ServletContext context, UserStore.User user, List<OrderLine> lines,
+    public static Order createOrder(ServletContext context, User user, List<OrderLine> lines,
             BigDecimal total) {
         Order order = new Order(
                 UUID.randomUUID().toString(),
                 user.getUsername(),
                 user.getFullName(),
-                user.getDefaultShippingAddressSummary(),
+            user.getDefaultAddress().getShippingAddress(),
                 LocalDateTime.now(),
                 total,
                 new ArrayList<>(lines),

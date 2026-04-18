@@ -1,9 +1,9 @@
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ page import="java.util.List" %>
 <%@ page import="com.btl_web.model.ClothingStore" %>
-<%@ page import="com.btl_web.model.UserStore" %>
+<%@ page import="com.btl_web.model.User" %>
 <%
-    UserStore.User currentUser = (UserStore.User) session.getAttribute("currentUser");
+    User currentUser = (User) session.getAttribute("currentUser");
     if (currentUser == null || !"admin".equals(currentUser.getUsername())) {
         session.setAttribute("authError", "Chỉ tài khoản admin mới được truy cập trang quản trị sản phẩm.");
         response.sendRedirect(request.getContextPath() + "/auth/login");

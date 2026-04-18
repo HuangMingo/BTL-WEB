@@ -1,7 +1,9 @@
 package com.btl_web.controller;
 
+import com.btl_web.dao.UserDAO;
 import com.btl_web.model.OrderStore;
-import com.btl_web.model.UserStore;
+import com.btl_web.model.User;
+
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -14,17 +16,24 @@ import java.util.List;
 
 @WebServlet("/orders")
 public class OrderServlet extends HttpServlet {
+    private final UserDAO userDAO = new UserDAO();
+
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         HttpSession session = request.getSession();
-        UserStore.User currentUser = (UserStore.User) session.getAttribute("currentUser");
+        User currentUser = (User) session.getAttribute("currentUser");
         if (currentUser == null) {
             response.sendRedirect(request.getContextPath() + "/auth/login");
             return;
         }
 
-        UserStore.User latestUser = UserStore.findByUsername(getServletContext(), currentUser.getUsername());
+        User latestUser;
+        try {
+            latestUser = userDAO.selectByUserNameAndPassword(currentUser.getUsername(), currentUser.getPassword());
+        } catch (Exception ex) {
+            throw new IllegalStateException("Không thể tải thông tin người dùng.", ex);
+        }
         List<OrderStore.Order> orders = OrderStore.findByUsername(getServletContext(), currentUser.getUsername());
 
         request.setAttribute("profileUser", latestUser);

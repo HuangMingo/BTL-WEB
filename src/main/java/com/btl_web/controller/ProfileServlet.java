@@ -1,6 +1,8 @@
 package com.btl_web.controller;
 
-import com.btl_web.model.UserStore;
+import com.btl_web.dao.AddressDAO;
+import com.btl_web.dao.UserDAO;
+import com.btl_web.model.User;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -9,20 +11,33 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import java.io.IOException;
+import java.sql.SQLException;
 
-@WebServlet(urlPatterns = { "/profile", "/profile/update", "/profile/address/add", "/profile/address/default",
-        "/profile/address/update" })
+@WebServlet(urlPatterns = {"/profile", "/profile/update", "/profile/address/add", "/profile/address/default",
+    "/profile/address/update"})
+
 public class ProfileServlet extends HttpServlet {
+
+    private UserDAO userDAO = new UserDAO();
+
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        UserStore.User currentUser = requireLogin(request, response);
+        User currentUser = requireLogin(request, response);
         if (currentUser == null) {
             return;
         }
 
-        UserStore.User latest = UserStore.findByUsername(getServletContext(), currentUser.getUsername());
-        request.setAttribute("profileUser", latest);
+        try {
+            User latest = userDAO.selectByUserName(currentUser.getUsername());
+            if (latest != null) {
+                request.setAttribute("profileUser", latest);
+                request.getSession().setAttribute("currentUser", latest);
+            }
+        } catch (SQLException | ClassNotFoundException ex) {
+            throw new IllegalStateException("Không thể tải thông tin người dùng.", ex);
+        }
+
         request.getRequestDispatcher("/profile.jsp").forward(request, response);
     }
 
@@ -30,19 +45,30 @@ public class ProfileServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
         request.setCharacterEncoding("UTF-8");
-        UserStore.User currentUser = requireLogin(request, response);
+        User currentUser = requireLogin(request, response);
         if (currentUser == null) {
             return;
         }
 
         String path = request.getServletPath();
         if ("/profile/update".equals(path)) {
-            updateProfile(request, response, currentUser);
+            try {
+                updateProfile(request, response, currentUser);
+            } catch (ClassNotFoundException | SQLException ex) {
+                request.getSession().setAttribute("profileError", "Không thể cập nhật thông tin cá nhân.");
+                throw new IllegalStateException("Không thể cập nhật thông tin người dùng.", ex);
+            }
             return;
         }
 
         if ("/profile/address/add".equals(path)) {
-            addAddress(request, response, currentUser);
+            try {
+                addAddress(request, response, currentUser);
+            } catch (ClassNotFoundException ex) {
+                System.getLogger(ProfileServlet.class.getName()).log(System.Logger.Level.ERROR, (String) null, ex);
+            } catch (SQLException ex) {
+                System.getLogger(ProfileServlet.class.getName()).log(System.Logger.Level.ERROR, (String) null, ex);
+            }
             return;
         }
 
@@ -59,12 +85,12 @@ public class ProfileServlet extends HttpServlet {
         response.sendRedirect(request.getContextPath() + "/profile");
     }
 
-    private void updateProfile(HttpServletRequest request, HttpServletResponse response, UserStore.User currentUser)
-            throws IOException {
-        UserStore.User latest = UserStore.findByUsername(getServletContext(), currentUser.getUsername());
-        if (UserStore.isCheckoutProfileReady(latest)) {
+    private void updateProfile(HttpServletRequest request, HttpServletResponse response, User currentUser)
+            throws IOException, ClassNotFoundException, SQLException {
+        User latest = userDAO.selectByUserName(currentUser.getUsername());
+        if (isProfileLocked(latest)) {
             request.getSession().setAttribute("profileError",
-                    "Thông tin cá nhân cố định đã được xác lập. Muốn sửa vui lòng liên hệ admin.");
+                    "Thông tin cá nhân đã được xác lập, không thể thay đổi thêm.");
             response.sendRedirect(request.getContextPath() + "/profile");
             return;
         }
@@ -116,8 +142,7 @@ public class ProfileServlet extends HttpServlet {
             return;
         }
 
-        UserStore.OperationResult result = UserStore.updateProfile(
-                getServletContext(),
+        User result = userDAO.updateProfile(
                 currentUser.getUsername(),
                 fullName,
                 age,
@@ -126,16 +151,31 @@ public class ProfileServlet extends HttpServlet {
                 phone,
                 baseAddress);
 
-        request.getSession().setAttribute(result.isSuccess() ? "profileSuccess" : "profileError", result.getMessage());
+        if (result != null) {
+            request.getSession().setAttribute("currentUser", result);
+            request.getSession().setAttribute("profileSuccess", "Cập nhật thông tin cá nhân thành công.");
+        } else {
+            request.getSession().setAttribute("profileError", "Không thể cập nhật thông tin cá nhân.");
+        }
         response.sendRedirect(request.getContextPath() + "/profile");
     }
 
-    private void addAddress(HttpServletRequest request, HttpServletResponse response, UserStore.User currentUser)
-            throws IOException {
+    private boolean isProfileLocked(User profileUser) {
+        return profileUser != null
+                && profileUser.getAge() > 0
+                && profileUser.getGender() != null && !profileUser.getGender().trim().isEmpty()
+                && profileUser.getEmail() != null && !profileUser.getEmail().trim().isEmpty()
+                && profileUser.getPhone() != null && !profileUser.getPhone().trim().isEmpty()
+                && profileUser.getBaseAddress() != null && !profileUser.getBaseAddress().trim().isEmpty();
+    }
+
+    private void addAddress(HttpServletRequest request, HttpServletResponse response, User currentUser)
+            throws IOException, ClassNotFoundException, SQLException {
         String recipientName = normalize(request.getParameter("recipientName"));
         String recipientPhone = normalize(request.getParameter("recipientPhone"));
         String shippingAddress = normalize(request.getParameter("shippingAddress"));
         boolean setDefault = "on".equalsIgnoreCase(request.getParameter("setDefault"));
+        AddressDAO addressDAO = new AddressDAO();
 
         if (recipientName.isEmpty() || recipientPhone.isEmpty() || shippingAddress.isEmpty()) {
             request.getSession().setAttribute("profileError", "Vui lòng nhập đủ thông tin địa chỉ giao hàng.");
@@ -149,38 +189,60 @@ public class ProfileServlet extends HttpServlet {
             return;
         }
 
-        UserStore.OperationResult result = UserStore.addShippingAddress(
-                getServletContext(),
+        int addressId = addressDAO.addAddress(
                 currentUser.getUsername(),
                 recipientName,
                 recipientPhone,
-                shippingAddress,
-                setDefault);
+                shippingAddress);
 
-        request.getSession().setAttribute(result.isSuccess() ? "profileSuccess" : "profileError", result.getMessage());
+        if (addressId > 0) {
+            request.getSession().setAttribute("profileSuccess", "Đã thêm địa chỉ giao hàng.");
+            
+            // Nếu checkbox "Đặt làm mặc định" được chọn, đặt địa chỉ này làm mặc định
+            if (setDefault) {
+                new com.btl_web.dao.UserDAO().setDefaultAddress(currentUser.getUsername(), addressId);
+            }
+        } else {
+            request.getSession().setAttribute("profileError", "Không thể thêm địa chỉ giao hàng.");
+        }
         response.sendRedirect(request.getContextPath() + "/profile");
     }
 
-    private void setDefaultAddress(HttpServletRequest request, HttpServletResponse response, UserStore.User currentUser)
+    private void setDefaultAddress(HttpServletRequest request, HttpServletResponse response, User currentUser)
             throws IOException {
-        String addressId = normalize(request.getParameter("addressId"));
-        UserStore.OperationResult result = UserStore.setDefaultAddress(
-                getServletContext(),
-                currentUser.getUsername(),
-                addressId);
-        request.getSession().setAttribute(result.isSuccess() ? "profileSuccess" : "profileError", result.getMessage());
+        String addressIdStr = normalize(request.getParameter("addressId"));
+        if (addressIdStr.isEmpty()) {
+            request.getSession().setAttribute("profileError", "ID địa chỉ không hợp lệ.");
+            response.sendRedirect(request.getContextPath() + "/profile");
+            return;
+        }
+
+        try {
+            int addressId = Integer.parseInt(addressIdStr);
+            boolean success = new com.btl_web.dao.UserDAO().setDefaultAddress(currentUser.getUsername(), addressId);
+            if (success) {
+                request.getSession().setAttribute("profileSuccess", "Đã cập nhật địa chỉ mặc định.");
+            } else {
+                request.getSession().setAttribute("profileError", "Không thể cập nhật địa chỉ mặc định.");
+            }
+        } catch (NumberFormatException e) {
+            request.getSession().setAttribute("profileError", "ID địa chỉ không hợp lệ.");
+        } catch (SQLException | ClassNotFoundException e) {
+            request.getSession().setAttribute("profileError", "Lỗi cơ sở dữ liệu: " + e.getMessage());
+        }
         response.sendRedirect(request.getContextPath() + "/profile");
     }
 
-    private void updateAddress(HttpServletRequest request, HttpServletResponse response, UserStore.User currentUser)
+    private void updateAddress(HttpServletRequest request, HttpServletResponse response, User currentUser)
             throws IOException {
-        String addressId = normalize(request.getParameter("addressId"));
+        AddressDAO addressDAO = new AddressDAO();
+        String addressIdStr = normalize(request.getParameter("addressId"));
         String recipientName = normalize(request.getParameter("recipientName"));
         String recipientPhone = normalize(request.getParameter("recipientPhone"));
         String shippingAddress = normalize(request.getParameter("shippingAddress"));
         boolean setDefault = "on".equalsIgnoreCase(request.getParameter("setDefault"));
 
-        if (addressId.isEmpty() || recipientName.isEmpty() || recipientPhone.isEmpty() || shippingAddress.isEmpty()) {
+        if (addressIdStr.isEmpty() || recipientName.isEmpty() || recipientPhone.isEmpty() || shippingAddress.isEmpty()) {
             request.getSession().setAttribute("profileError", "Vui lòng nhập đầy đủ thông tin địa chỉ cần sửa.");
             response.sendRedirect(request.getContextPath() + "/profile");
             return;
@@ -192,23 +254,45 @@ public class ProfileServlet extends HttpServlet {
             return;
         }
 
-        UserStore.OperationResult result = UserStore.updateShippingAddress(
-                getServletContext(),
-                currentUser.getUsername(),
-                addressId,
-                recipientName,
-                recipientPhone,
-                shippingAddress,
-                setDefault);
+        try {
+            int addressId = Integer.parseInt(addressIdStr);
+            int rowsUpdated = addressDAO.updateAddress(
+                    addressId,
+                    currentUser.getUsername(),
+                    recipientName,
+                    recipientPhone,
+                    shippingAddress);
 
-        request.getSession().setAttribute(result.isSuccess() ? "profileSuccess" : "profileError", result.getMessage());
+            if (rowsUpdated > 0) {
+                request.getSession().setAttribute("profileSuccess", "Đã cập nhật địa chỉ giao hàng.");
+                
+                UserDAO userDAO = new com.btl_web.dao.UserDAO();
+                // Nếu checkbox "Đặt làm mặc định" được chọn, cập nhật địa chỉ mặc định
+                if (setDefault) {
+                    userDAO.setDefaultAddress(currentUser.getUsername(), addressId);
+                } else {
+                    // Nếu checkbox không được chọn nhưng địa chỉ này là mặc định hiện tại, xóa mặc định
+                    User latestUser = userDAO.selectByUserName(currentUser.getUsername());
+                    if (latestUser != null && latestUser.getDefaultAddress() != null 
+                            && latestUser.getDefaultAddress().getId() == addressId) {
+                        userDAO.clearDefaultAddress(currentUser.getUsername());
+                    }
+                }
+            } else {
+                request.getSession().setAttribute("profileError", "Không thể cập nhật địa chỉ giao hàng.");
+            }
+        } catch (NumberFormatException e) {
+            request.getSession().setAttribute("profileError", "ID địa chỉ không hợp lệ.");
+        } catch (SQLException | ClassNotFoundException e) {
+            request.getSession().setAttribute("profileError", "Lỗi cơ sở dữ liệu: " + e.getMessage());
+        }
         response.sendRedirect(request.getContextPath() + "/profile");
     }
 
-    private UserStore.User requireLogin(HttpServletRequest request, HttpServletResponse response)
+    private User requireLogin(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
         HttpSession session = request.getSession();
-        UserStore.User currentUser = (UserStore.User) session.getAttribute("currentUser");
+        User currentUser = (User) session.getAttribute("currentUser");
         if (currentUser == null) {
             response.sendRedirect(request.getContextPath() + "/auth/login");
             return null;

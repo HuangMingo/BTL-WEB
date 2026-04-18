@@ -1,8 +1,10 @@
 package com.btl_web.controller;
 
+import com.btl_web.dao.ProductDAO;
+import com.btl_web.dao.UserDAO;
 import com.btl_web.model.OrderStore;
-import com.btl_web.model.ShopCatalog;
-import com.btl_web.model.UserStore;
+import com.btl_web.model.Product;
+import com.btl_web.model.User;
 
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
@@ -12,13 +14,18 @@ import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@WebServlet(urlPatterns = { "/cart", "/cart/add", "/cart/remove", "/cart/checkout" })
+@WebServlet(urlPatterns = {"/cart", "/cart/add", "/cart/remove", "/cart/checkout"})
 public class CartServlet extends HttpServlet {
+
+    private final UserDAO userDAO = new UserDAO();
+    private final ProductDAO productDAO = new ProductDAO();
+
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -26,15 +33,25 @@ public class CartServlet extends HttpServlet {
             response.sendRedirect(request.getContextPath() + "/auth/login");
             return;
         }
-
         HttpSession session = request.getSession();
-        UserStore.User currentUser = (UserStore.User) session.getAttribute("currentUser");
-        UserStore.User latestUser = UserStore.findByUsername(getServletContext(), currentUser.getUsername());
+        User currentUser = (User) session.getAttribute("currentUser");
+        User latestUser;
+        try {
+            latestUser = userDAO.selectByUserName(currentUser.getUsername());
+            request.setAttribute("profileUser", latestUser);
+            request.setAttribute("profileReady", isCheckoutProfileReady(latestUser));
+        } catch (SQLException ex) {
+            throw new IllegalStateException("Không thể tải thông tin người dùng.", ex);
+        } catch (ClassNotFoundException ex) {
+            System.getLogger(CartServlet.class.getName()).log(System.Logger.Level.ERROR, (String) null, ex);
+        }
+//        request.setAttribute("defaultAddressId", latestUser == null ? "" : latestUser.getDefaultAddress().getId());
+
         List<CartItemView> items = new ArrayList<>();
         BigDecimal total = BigDecimal.ZERO;
 
         for (Map.Entry<String, Integer> entry : getCart(session).entrySet()) {
-            ShopCatalog.Product product = ShopCatalog.findById(getServletContext(), entry.getKey());
+            Product product = findProductById(entry.getKey());
             if (product == null) {
                 continue;
             }
@@ -43,12 +60,9 @@ public class CartServlet extends HttpServlet {
             total = total.add(lineTotal);
             items.add(new CartItemView(product, quantity, lineTotal));
         }
-
         request.setAttribute("cartItems", items);
         request.setAttribute("cartTotal", total);
-        request.setAttribute("profileReady", UserStore.isCheckoutProfileReady(latestUser));
-        request.setAttribute("defaultAddressId", latestUser == null ? "" : latestUser.getDefaultAddressId());
-        request.setAttribute("profileUser", latestUser);
+
         request.getRequestDispatcher("/cart.jsp").forward(request, response);
     }
 
@@ -82,7 +96,7 @@ public class CartServlet extends HttpServlet {
         String productId = normalize(request.getParameter("productId"));
         int quantity = parsePositiveInt(request.getParameter("quantity"));
 
-        if (quantity <= 0 || ShopCatalog.findById(getServletContext(), productId) == null) {
+        if (quantity <= 0 || findProductById(productId) == null) {
             request.getSession().setAttribute("shopError", "Không thể thêm sản phẩm vào giỏ.");
             response.sendRedirect(request.getContextPath() + "/shop");
             return;
@@ -104,9 +118,14 @@ public class CartServlet extends HttpServlet {
 
     private void checkout(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
-        UserStore.User currentUser = (UserStore.User) request.getSession().getAttribute("currentUser");
-        UserStore.User latestUser = UserStore.findByUsername(getServletContext(), currentUser.getUsername());
-        if (!UserStore.isCheckoutProfileReady(latestUser)) {
+        User currentUser = (User) request.getSession().getAttribute("currentUser");
+        User latestUser;
+        try {
+            latestUser = userDAO.selectByUserName(currentUser.getUsername());
+        } catch (SQLException | ClassNotFoundException ex) {
+            throw new IllegalStateException("Không thể tải thông tin người dùng.", ex);
+        }
+        if (!isCheckoutProfileReady(latestUser)) {
             request.getSession().setAttribute(
                     "profileError",
                     "Trước khi đặt hàng, bạn cần cập nhật thông tin cá nhân cố định và thiết lập địa chỉ giao hàng mặc định.");
@@ -145,7 +164,7 @@ public class CartServlet extends HttpServlet {
 
         List<OrderStore.OrderLine> lines = new ArrayList<>();
         for (Map.Entry<String, Integer> entry : selectedItems.entrySet()) {
-            ShopCatalog.Product product = ShopCatalog.findById(getServletContext(), entry.getKey());
+            Product product = findProductById(entry.getKey());
             if (product != null) {
                 lines.add(new OrderStore.OrderLine(
                         product.getId(),
@@ -202,18 +221,51 @@ public class CartServlet extends HttpServlet {
         return value == null ? "" : value.trim();
     }
 
+    private Product findProductById(String productId) {
+        try {
+            productDAO.ensureTableExists();
+            return productDAO.findById(productId);
+        } catch (SQLException e) {
+            throw new IllegalStateException("Không thể truy vấn dữ liệu sản phẩm.", e);
+        }
+    }
+
+    private boolean isCheckoutProfileReady(User user) {
+        if (user == null) {
+            return false;
+        }
+        if (user.getDefaultAddress() == null) {
+            return false;
+        }
+        if (isBlank(user.getFullName())
+                || user.getAge() <= 0
+                || isBlank(user.getGender())
+                || isBlank(user.getEmail())
+                || isBlank(user.getPhone()) 
+                || isBlank(user.getDefaultAddress().getShippingAddress())
+                ) {
+            return false;
+        }
+        return true;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
     public static final class CartItemView {
-        private final ShopCatalog.Product product;
+
+        private final Product product;
         private final int quantity;
         private final BigDecimal lineTotal;
 
-        public CartItemView(ShopCatalog.Product product, int quantity, BigDecimal lineTotal) {
+        public CartItemView(Product product, int quantity, BigDecimal lineTotal) {
             this.product = product;
             this.quantity = quantity;
             this.lineTotal = lineTotal;
         }
 
-        public ShopCatalog.Product getProduct() {
+        public Product getProduct() {
             return product;
         }
 

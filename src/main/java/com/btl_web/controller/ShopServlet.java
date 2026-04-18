@@ -1,5 +1,7 @@
 package com.btl_web.controller;
 
+import com.btl_web.dao.ProductDAO;
+import com.btl_web.model.Product;
 import com.btl_web.model.ShopCatalog;
 
 import javax.servlet.ServletException;
@@ -8,79 +10,85 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
 @WebServlet("/shop")
 public class ShopServlet extends HttpServlet {
     private static final int PAGE_SIZE = 40;
+    private ProductDAO productDAO = new ProductDAO();
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        String group = normalizeOrDefault(request.getParameter("group"), "all");
-        String segment = normalizeOrDefault(request.getParameter("segment"), "all");
-        String keyword = normalizeOrDefault(request.getParameter("q"), "");
-        int page = parsePage(request.getParameter("page"));
-
-        segment = sanitizeSegmentByGroup(group, segment);
-
-        List<ShopCatalog.Product> filtered = new ArrayList<>();
-        for (ShopCatalog.Product product : ShopCatalog.all(getServletContext())) {
-            if (!matchesGroup(product, group)) {
-                continue;
+        try {
+            String group = normalizeOrDefault(request.getParameter("group"), "all");
+            String segment = normalizeOrDefault(request.getParameter("segment"), "all");
+            String keyword = normalizeOrDefault(request.getParameter("q"), "");
+            int page = parsePage(request.getParameter("page"));
+            
+            segment = sanitizeSegmentByGroup(group, segment);
+            
+            List<Product> filtered = new ArrayList<>();
+            for (Product product : productDAO.findAll()) {
+                if (!matchesGroup(product, group)) {
+                    continue;
+                }
+                if (!matchesSegment(product, segment)) {
+                    continue;
+                }
+                if (!matchesKeyword(product, keyword)) {
+                    continue;
+                }
+                filtered.add(product);
             }
-            if (!matchesSegment(product, segment)) {
-                continue;
+            
+            int totalItems = filtered.size();
+            int totalPages = totalItems == 0 ? 1 : (int) Math.ceil((double) totalItems / PAGE_SIZE);
+            if (page > totalPages) {
+                page = totalPages;
             }
-            if (!matchesKeyword(product, keyword)) {
-                continue;
+            
+            int fromIndex = (page - 1) * PAGE_SIZE;
+            int toIndex = Math.min(fromIndex + PAGE_SIZE, totalItems);
+            
+            List<Product> pageItems;
+            if (totalItems == 0) {
+                pageItems = new ArrayList<>();
+            } else {
+                pageItems = filtered.subList(fromIndex, toIndex);
             }
-            filtered.add(product);
+
+            request.setAttribute("products", pageItems);
+            request.setAttribute("group", group);
+            request.setAttribute("segment", segment);
+            request.setAttribute("q", keyword);
+            request.setAttribute("page", page);
+            request.setAttribute("totalPages", totalPages);
+            request.setAttribute("totalItems", totalItems);
+            
+            request.getRequestDispatcher("/shop.jsp").forward(request, response);
+        } catch (SQLException ex) {
+            System.getLogger(ShopServlet.class.getName()).log(System.Logger.Level.ERROR, (String) null, ex);
         }
-
-        int totalItems = filtered.size();
-        int totalPages = totalItems == 0 ? 1 : (int) Math.ceil((double) totalItems / PAGE_SIZE);
-        if (page > totalPages) {
-            page = totalPages;
-        }
-
-        int fromIndex = (page - 1) * PAGE_SIZE;
-        int toIndex = Math.min(fromIndex + PAGE_SIZE, totalItems);
-
-        List<ShopCatalog.Product> pageItems;
-        if (totalItems == 0) {
-            pageItems = new ArrayList<>();
-        } else {
-            pageItems = filtered.subList(fromIndex, toIndex);
-        }
-
-        request.setAttribute("products", pageItems);
-        request.setAttribute("group", group);
-        request.setAttribute("segment", segment);
-        request.setAttribute("q", keyword);
-        request.setAttribute("page", page);
-        request.setAttribute("totalPages", totalPages);
-        request.setAttribute("totalItems", totalItems);
-
-        request.getRequestDispatcher("/shop.jsp").forward(request, response);
     }
 
-    private boolean matchesGroup(ShopCatalog.Product product, String group) {
+    private boolean matchesGroup(Product product, String group) {
         if ("all".equals(group)) {
             return true;
         }
         return product.getGroup().equalsIgnoreCase(group);
     }
 
-    private boolean matchesSegment(ShopCatalog.Product product, String segment) {
+    private boolean matchesSegment(Product product, String segment) {
         if ("all".equals(segment)) {
             return true;
         }
         return product.getSegment().equalsIgnoreCase(mapSegment(segment));
     }
 
-    private boolean matchesKeyword(ShopCatalog.Product product, String keyword) {
+    private boolean matchesKeyword(Product product, String keyword) {
         if (keyword.isEmpty()) {
             return true;
         }
